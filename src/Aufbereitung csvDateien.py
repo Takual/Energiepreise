@@ -1,51 +1,69 @@
 import pandas as pd
+import csv
 import os
 
-# Pfade zu den Rohdaten und den Verarbeiteten Dateien
-raw_path = "/mnt/data/raw"
-processed_path = "/mnt/data/processed/"
+def process_csv(input_file, output_file, error_file, expected_columns, delimiter=';'):
+    """
+    Diese Funktion liest eine CSV-Datei mit Semikolon-Trennzeichen, passt fehlerhafte Zeilen an oder speichert sie in einer Fehlerdatei.
 
-# Sicherstellen, dass der Ausgabeordner existiert
-os.makedirs(processed_path, exist_ok=True)
+    Parameters:
+        input_file (str): Pfad zur Eingabedatei.
+        output_file (str): Pfad zur bereinigten Ausgabedatei.
+        error_file (str): Pfad zur Datei mit fehlerhaften Zeilen.
+        expected_columns (int): Erwartete Anzahl an Spalten.
+        delimiter (str): Trennzeichen der CSV-Datei.
+    """
+    # Listen für korrekte und fehlerhafte Zeilen
+    valid_rows = []
+    error_rows = []
 
-# Dateien, die verarbeitet werden sollen
-files = [
-    "tbl_Vergleich_GV_GuenstjePostort_2Stichtage_Gas.csv",
-    "tbl_Vergleich_GV_GuenstjePostort_2Stichtage_Strom.csv",
-]
+    # Header und Zeilen prüfen
+    with open(input_file, mode='r', encoding='utf-8') as file:
+        reader = csv.reader(file, delimiter=delimiter)  # Semikolon als Trennzeichen
+        header = next(reader)  # Header auslesen
+        print(f"Gelesener Header: {header}")
+        if len(header) != expected_columns:
+            raise ValueError(f"Header hat nicht die erwartete Anzahl an Spalten: {len(header)} (erwartet: {expected_columns})")
 
-# Funktion zur Bereinigung und Verarbeitung
-def clean_and_process_file(input_file, output_file):
-    try:
-        # Versuche die Datei mit verschiedenen Trennzeichen zu laden
-        df = None
-        for delimiter in [',', ';', '\t']:
-            try:
-                df = pd.read_csv(input_file, delimiter=delimiter)
-                break
-            except Exception:
-                continue
+        for line_number, row in enumerate(reader, start=2):  # Zeilennummer ab 2 (wegen Header)
+            if len(row) == expected_columns:
+                valid_rows.append(row)
+            else:
+                # Fehlerhafte Zeilen: Anpassen oder Speichern
+                if len(row) > expected_columns:
+                    # Zu viele Spalten: Überflüssige abschneiden
+                    row = row[:expected_columns]
+                    valid_rows.append(row)
+                elif len(row) < expected_columns:
+                    # Zu wenige Spalten: Fehlende Werte auffüllen
+                    row.extend([''] * (expected_columns - len(row)))
+                    valid_rows.append(row)
+                else:
+                    error_rows.append((line_number, row))
 
-        if df is None:
-            raise ValueError(f"Datei konnte nicht geladen werden: {input_file}")
+    # Bereinigte Daten speichern
+    with open(output_file, mode='w', encoding='utf-8', newline='') as file:
+        writer = csv.writer(file, delimiter=delimiter)
+        writer.writerow(header)  # Schreibe den Header
+        writer.writerows(valid_rows)
 
-        # Entfernen von leeren Zeilen
-        df.dropna(how='all', inplace=True)
+    # Fehlerhafte Zeilen speichern
+    with open(error_file, mode='w', encoding='utf-8', newline='') as file:
+        writer = csv.writer(file, delimiter=delimiter)
+        writer.writerow(["Zeile", "Inhalt"])  # Kopfzeile für Fehlerdatei
+        for line_number, row in error_rows:
+            writer.writerow([line_number, row])
 
-        # Überprüfen auf doppelte Einträge und Entfernen
-        df.drop_duplicates(inplace=True)
+    print(f"Bereinigung abgeschlossen: {output_file}")
+    print(f"Fehlerhafte Zeilen gespeichert in: {error_file}")
 
-        # Optional: Weitere spezifische Bereinigungen durchführen
-        # (Anpassungen können nach Bedarf erfolgen)
+# Beispielnutzung
+input_file = "data/raw/tbl_Vergleich_GV_GuenstjePostort_2Stichtage_Strom.csv"
+output_file = "data/processed/cleaned_file.csv"
+error_file = "data/processed/error_lines.csv"
+expected_columns = 14  # Erwartete Spaltenanzahl
 
-        # Bereinigte Datei speichern
-        df.to_csv(output_file, index=False)
-        print(f"Datei erfolgreich verarbeitet und gespeichert: {output_file}")
-    except Exception as e:
-        print(f"Fehler bei der Verarbeitung der Datei {input_file}: {e}")
+# Verzeichnis erstellen, falls nicht vorhanden
+os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-# Verarbeitung der Dateien
-for file in files:
-    input_file = os.path.join(raw_path, file)
-    output_file = os.path.join(processed_path, file)
-    clean_and_process_file(input_file, output_file)
+process_csv(input_file, output_file, error_file, expected_columns)
