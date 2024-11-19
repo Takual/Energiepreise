@@ -2,7 +2,7 @@ import pandas as pd
 import os
 
 # Pfade zu den Rohdaten und den Verarbeiteten Dateien
-raw_path = "/mnt/data/"
+raw_path = "/mnt/data/raw"
 processed_path = "/mnt/data/processed/"
 
 # Sicherstellen, dass der Ausgabeordner existiert
